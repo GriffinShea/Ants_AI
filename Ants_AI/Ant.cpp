@@ -129,8 +129,8 @@ int* Ant::getForwardPos() {
 Genome Ant::generateRandomGenome() {
 	Genome g;
 	//INITIAL GENOME SETUP
-	//for (int i = 0; i < 80; i++) g.inputWeights[i] = randCharInRange(0, 17);
-	//for (int i = 0; i < 56; i++) g.hiddenWeights[i] = randCharInRange(0, 17);
+	//for (int i = 0; i < 80; i++) g.inputWeights[i] = randCharInRange(0, 16);
+	//for (int i = 0; i < 56; i++) g.hiddenWeights[i] = randCharInRange(0, 16);
 	for (int i = 0; i < 80; i++) g.inputWeights[i] = 8;
 	for (int i = 0; i < 56; i++) g.hiddenWeights[i] = 8;
 	return g;
@@ -144,8 +144,8 @@ Genome Ant::mutateGenome(Genome g) {
 	int index;
 	for (int i = 0; i < MUTATION_RATE; i++) {
 		index = randIntInRange(0, 135);
-		if (index < 80) g.inputWeights[index]		= randCharInRange(0, 17);
-		else			g.hiddenWeights[index - 80] = randCharInRange(0, 17);
+		if (index < 80) g.inputWeights[index]		= randCharInRange(0, 16);
+		else			g.hiddenWeights[index - 80] = randCharInRange(0, 16);
 	}
 
 	//increment or decrement MUTATION_RATE random chars

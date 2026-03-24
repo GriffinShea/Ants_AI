@@ -1,7 +1,10 @@
 /*
 
-	Authors:
-		Alexandra Coscuig - App.cpp
+	Authors of Initial Commit:
+		Alexandra Coscuig
+		Griffin Shea
+
+	Author of Subsequent Commits:
 		Griffin Shea
 
 */
@@ -29,13 +32,23 @@ extern const int EID_HIVE = 3;
 //train instead
 //extern const std::string loadfilename = "";
 
-//load file for 2 mutations per generation, mutation method 2, weights -2 to 2, all weights start random
+//load file for 4 mutations per generation, mutation method 2, weights -2 to 2, all weights start at 0
 //extern const std::string loadfilename = "../saved_generations/1774312453_genomes_at_generation_9.txt";
 //extern const std::string loadfilename = "../saved_generations/1774312467_genomes_at_generation_59.txt";
-extern const std::string loadfilename = "../saved_generations/1774312475_genomes_at_generation_89.txt";
+//extern const std::string loadfilename = "../saved_generations/1774392602_genomes_at_generation_0.txt";
+//extern const std::string loadfilename = "../saved_generations/1774392602_genomes_at_generation_1.txt";
+//extern const std::string loadfilename = "../saved_generations/1774392602_genomes_at_generation_5.txt";
+//extern const std::string loadfilename = "../saved_generations/1774392602_genomes_at_generation_10.txt";
+// 
+//extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_9.txt";
+//extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_39.txt";
+//extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_69.txt";
+extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_99.txt";
+
+
 
 //simulation run parametres
-extern const int MAX_GENERATIONS = 10000;
+extern const int MAX_GENERATIONS = 1000;
 extern const int SAVE_GENERATION = 10;
 
 //height and width of world
@@ -52,6 +65,13 @@ extern const int MUTATION_RATE = 4;	//MUTATION RATE SETUP
 #include "World.h"
 #include "Ant.h"
 #include "App.h"
+
+struct simulationSettings {
+	int worldSize;
+	int population;
+	int foodCount;
+	int simIterations;
+};
 
 void populateNewGeneration(Ant* ants[]) {
 	//sort ants by fitness score
@@ -85,13 +105,13 @@ int getCumulativeFitness(Ant* ants[]) {
 	return sum;
 }
 
-void writeGenerationToFile(Ant* ants[], int genNum, int fitnessScores[]) {
+void writeGenerationToFile(Ant* ants[], int genNum, int fitnessScores[], unsigned int seed) {
 	std::ofstream file;
 	std::stringstream filename;
 	int cumulativeFitness;
 
 	//open a new file
-	filename << "../saved_generations/" << std::to_string(time(0));
+	filename << "../saved_generations/" << seed;
 	filename << "_genomes_at_generation_" << std::to_string(genNum);
 	filename << ".txt";
 	file.open(filename.str());
@@ -121,12 +141,29 @@ void writeGenerationToFile(Ant* ants[], int genNum, int fitnessScores[]) {
 	return;
 }
 
-int readGenerationFromFile(Ant* ants[], std::string filename) {
+simulationSettings readGenerationFromFile(Ant* ants[], std::string filename) {
 	ifstream file(filename);
 	string line;
+	simulationSettings ss;
+	ss.worldSize = 0;
 
 	if (file.is_open()) {
 		getline(file, line);
+
+		int p = line.find(",");
+		ss.worldSize = std::stoi(line.substr(0, p));
+		line.erase(0, p + 1);
+		p = line.find(",");
+		ss.population = std::stoi(line.substr(0, p));
+		line.erase(0, p + 1);
+		p = line.find(",");
+		ss.foodCount= std::stoi(line.substr(0, p));
+		line.erase(0, p + 1);
+		p = line.find(",");
+		ss.simIterations = std::stoi(line.substr(0, p));
+		line.erase(0, p + 1);
+		
+
 		getline(file, line);
 		for (int i = 0; i < POPULATION; i++) {
 			if (getline(file, line)) {
@@ -139,18 +176,12 @@ int readGenerationFromFile(Ant* ants[], std::string filename) {
 		}
 	}
 
-	for (int i = filename.length() - 1; i >= 0; i--) {
-		if (filename[i] == '_') {
-			return stoi(filename.substr(i + 1, filename.length() - 4));
-		}
-	}
-
-	return 0;
+	return ss;
 }
 
 int main(int argc, char* argv[]) {
-	std::cout << "HI";
-	srand(time(NULL));
+	unsigned int seed = time(NULL);
+	srand(seed);
 
 	Ant* ants[POPULATION];
 	World* world;
@@ -164,13 +195,13 @@ int main(int argc, char* argv[]) {
 			ants[i] = new Ant();
 		}
 
-		std::cout << "Begining simulation (each \".\" represents a generation):" << std::endl;
+		std::cout << "Begining simulation (each \".\" represents a generation, the number is the generation's cumulative fitness score):" << std::endl;
 		for (int i = initialGeneration; i <= MAX_GENERATIONS; i++) {
 
 			//create the world, simulate for SIMULATION_ITERATIONS steps, then deallocate
 			world = new World(WORLD_SIZE, POPULATION, ants, FOOD_COUNT);
 			for (int j = 0; j < SIMULATION_ITERATIONS; j++) {
-				world->simulateStep(j);
+				world->simulateStep(j, SIMULATION_ITERATIONS);
 			}
 			delete world;
 
@@ -180,7 +211,7 @@ int main(int argc, char* argv[]) {
 
 			//save best genomes to file every so often
 			if (i % SAVE_GENERATION == SAVE_GENERATION - 1) {
-				writeGenerationToFile(ants, i, fitnessScores);
+				writeGenerationToFile(ants, i, fitnessScores, seed);
 			}
 
 			//select best ants by fitness score and create a new generation
@@ -189,14 +220,18 @@ int main(int argc, char* argv[]) {
 	}
 
 	else {
-		std::cout << "Loading genomes from " << loadfilename << ":" << __FILE__ << std::endl;
-		initialGeneration = readGenerationFromFile(ants, loadfilename);
-		world = new World(WORLD_SIZE, POPULATION, ants, FOOD_COUNT);
+		std::cout << "Loading genomes from " << loadfilename << ":" << std::endl;
+		simulationSettings ss = readGenerationFromFile(ants, loadfilename);
+		if (ss.worldSize == 0) { 
+			std::cout << "ERROR: The file " << loadfilename << " could not be opened or read, exiting." << std::endl;
+			return 0;
+		}
+		world = new World(ss.worldSize, ss.population, ants, ss.foodCount);
 		
 		App app;
-		app.Init(argc, argv, world, WORLD_SIZE);
-		for (int i = 0; i < SIMULATION_ITERATIONS; i++) {
-			world->simulateStep(i);
+		app.Init(argc, argv, world, ss.worldSize);
+		for (int i = 0; i < ss.simIterations; i++) {
+			world->simulateStep(i, ss.simIterations);
 			RenderCallback();
 			Sleep(1000 / 30);
 		}

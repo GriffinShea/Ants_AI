@@ -44,7 +44,7 @@ public:
 	World(int, int, Ant**, int);
 
 	//used in main to run one step of the simulation
-	void simulateStep(int);
+	void simulateStep(int, int);
 
 	//used by an ant to attempt to move itself
 	bool moveAnt(Ant*);

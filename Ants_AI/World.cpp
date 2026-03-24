@@ -2,8 +2,6 @@
 
 #define PIX2 6.2831853
 
-extern const int SIMULATION_ITERATIONS;
-
 World::GridSquare::GridSquare() {
 	ant = NULL;
 	//temperature = -200;
@@ -36,8 +34,8 @@ World::World(int w, int p, Ant** a, int foodCount) {
 	return;
 }
 
-void World::simulateStep(int step) {
-	float stepFloat = ((float)step / SIMULATION_ITERATIONS) * 2 - 1;
+void World::simulateStep(int step, int simIterations) {
+	float stepFloat = ((float)step / simIterations) * 2 - 1;
 	float oscFloat = sin((float)(step % 20) / 20.0f * PIX2);
 
 	for (int i = 0; i < population; i++) {

@@ -40,13 +40,13 @@ void drawGrid() {
 				color = glm::vec3(1.0, 0.0, 0.5);
 			}
 			else {
-				if (world->showSignalA(row, col) && world->checkSignalA(row, col)) {
-					color = glm::vec3(0, 0, 0.5);
+				color = glm::vec3(0.5, 0.5, 0.5);
+				if (world->checkSignalA(row, col)) {
+					color.x = (world->readSignalA(row, col) + 1) / 2;
 				}
-				else if (!world->showSignalA(row, col) && world->checkSignalB(row, col)) {
-					color = glm::vec3(0.5, 0, 0);
+				if (world->checkSignalB(row, col)) {
+					color.z = (world->readSignalB(row, col) + 1) / 2;
 				}
-				else { color = glm::vec3(0.5, 0.5, 0.5); }
 			}
 
 			glBegin(GL_POLYGON);
