@@ -5,7 +5,7 @@ using namespace std;
 
 namespace rand_funcs {
 	int randIntInRange(int min, int max) {
-		return (rand() % max) + min;
+		return (rand() % (max + 1)) + min;
 	}
 	char randCharInRange(char min, char max) {
 		return (rand() % (max + 1)) + min;

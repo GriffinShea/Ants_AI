@@ -3,16 +3,10 @@
 vector<Vertex> square;
 int worldSize;
 World* world;
+
 void CreateSquare(void) {
-	Vertex v;
-	v.pos = glm::vec2(0, GRID_SIZE);
-	square.push_back(v);
-	v.pos = glm::vec2(GRID_SIZE, GRID_SIZE);
-	square.push_back(v);
-	v.pos = glm::vec2(GRID_SIZE, 0);
-	square.push_back(v);
-	v.pos = glm::vec2(0, 0);
-	square.push_back(v);
+	
+	return;
 }
 
 void drawGrid() {
@@ -24,29 +18,24 @@ void drawGrid() {
 		for (int col = 0; col < worldSize; ++col) {
 			position = glm::vec2(window_size - GRID_SIZE - GRID_SIZE * row, 0 + col * GRID_SIZE);
 
+			
+
 			if (world->containsAnt(row, col)) {
 				if (world->getAnt(row, col)->getHasFood())
-					color = glm::vec3(0.9, 0.9, 0.9);
+					color = glm::vec3(0, 1, 0);
 				else
-					color = glm::vec3(0.1, 0.1, 0.1);
-			}
-			else if (world->checkHive(row, col) && world->checkFood(row, col)) {
-				color = glm::vec3(0.5, 0.25, 0.5);
+					color = glm::vec3(1, 1, 1);
 			}
 			else if (world->checkFood(row, col)) {
-				color = glm::vec3(0.0, 1.0, 0.0);
+				color = glm::vec3(0.0, 0.75, 0.0);
 			}
 			else if (world->checkHive(row, col)) {
-				color = glm::vec3(1.0, 0.0, 0.5);
+				color = glm::vec3(0.5, 0.0, 0.5);
 			}
 			else {
-				color = glm::vec3(0.5, 0.5, 0.5);
-				if (world->checkSignalA(row, col)) {
-					color.x = (world->readSignalA(row, col) + 1) / 2;
-				}
-				if (world->checkSignalB(row, col)) {
-					color.z = (world->readSignalB(row, col) + 1) / 2;
-				}
+				color = glm::vec3(0.5);
+				color.x = (world->readSignalA(row, col) + 1) / 2;
+				color.z = (world->readSignalB(row, col) + 1) / 2;
 			}
 
 			glBegin(GL_POLYGON);
@@ -70,28 +59,41 @@ void RenderCallback() {
 }
 
 
-void ResizeCallback(int width, int height) {
+void ResizeCallback(int w, int h) {
 
-	glViewport(0, 0, width, height);
+	glViewport(0, 0, w, h);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluOrtho2D(0.0, instance->window_width, 0.0, instance->window_height);
+	gluOrtho2D(0.0, w, 0.0, h);
 
 }
 
 void App::stop() {
 }
 
-int App::Init(int argc, char* argv[], World* w, int size) {
+void App::setWorld(World *w, int s) {
 	world = w;
-	worldSize = size;
+	worldSize = s;
+	gridSize = windowSize / worldSize;
+	Vertex v;
+	v.pos = glm::vec2(0, gridSize);
+	square.push_back(v);
+	v.pos = glm::vec2(gridSize, gridSize);
+	square.push_back(v);
+	v.pos = glm::vec2(gridSize, 0);
+	square.push_back(v);
+	v.pos = glm::vec2(0, 0);
+	square.push_back(v);
+	return;
+}
+
+int App::Init(int argc, char* argv[], int ws) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA);
-	window_height = worldSize * GRID_SIZE;
-	window_width = worldSize * GRID_SIZE;
-	glutInitWindowSize(window_width, window_height);
-	glutInitWindowPosition(120, 120);
+	windowSize = ws * GRID_SIZE;
+	glutInitWindowSize(windowSize, windowSize);
+	glutInitWindowPosition(0, 0);
 	glewExperimental = GL_TRUE;
 	GLenum err = glewInit();
 	if (err != GLEW_OK) {
@@ -105,12 +107,12 @@ int App::Init(int argc, char* argv[], World* w, int size) {
 	glutReshapeFunc(ResizeCallback);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	CreateSquare();
+	//CreateSquare();
 
 	//glutKeyboardFunc(KeyboardInputCallback);
 	//glutMainLoop();
 
 	RenderCallback();
-	ResizeCallback(worldSize * GRID_SIZE, worldSize * GRID_SIZE);
+	ResizeCallback(windowSize, windowSize);
 	return 0;
 }

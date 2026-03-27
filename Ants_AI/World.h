@@ -12,7 +12,6 @@ const int MIN_TEMP = -20;
 const int MAX_TEMP = 50;
 const int TYPE_HIVE = 1;
 const int TYPE_FOOD = 2;
-const char directions[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
 class World
 {
@@ -27,15 +26,9 @@ public:
 		bool isHive;
 		bool hasAnt;
 
-		bool hasSignalA;
 		float signalA;
-		bool hasSignalB;
 		float signalB;
 
-		bool lastSignalIsA;
-
-		int signalACount; //cumulative 
-		int signalBCount; //cumulative
 
 		GridSquare();
 	};
@@ -57,14 +50,11 @@ public:
 	//methods for ants to use to sense the world
 	bool checkFood(int x, int y);
 	bool checkHive(int x, int y);
-	bool checkSignalA(int x, int y);
 	float readSignalA(int x, int y);
-	bool checkSignalB(int x, int y);
 	float readSignalB(int x, int y);
 	bool checkBlocked(int x, int y);
 	bool containsAnt(int x, int y);
 	inline Ant* getAnt(int x, int y) { return grid[x][y].ant; }
-	inline bool showSignalA(int x, int y) { return grid[x][y].lastSignalIsA; }
 	void printGrid();
 private:
 	//world size and GridSquare array representing the world

@@ -16,23 +16,24 @@
 #include "World.h";
 
 
-const int GRID_SIZE = 6;
+const int GRID_SIZE = 7;
 
 struct Vertex {
 	glm::vec2 pos;
 	glm::vec3 color;
-	glm::vec3 normal;
 };
 
 class App {
 
 public:
-	int Init(int argc, char* argv[], World* w, int size);
+	int Init(int argc, char* argv[], int);
+	void setWorld(World*, int);
 	void stop();
-	int window_width, window_height;
+	int windowSize;
+	float gridSize;
 };
 
 static App* instance;
 //callback functions
 void RenderCallback();
-void ResizeCallback(int width, int height);
+void ResizeCallback(int, int);

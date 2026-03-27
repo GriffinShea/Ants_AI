@@ -7,18 +7,17 @@ extern const int MUTATION_RATE;
 Ant::Ant() : Ant(generateRandomGenome()) { return; }
 
 Ant::Ant(Genome g) {
-	//mutate genome then set neural network weights from genome
+	//save mutated genome
 	genome = mutateGenome(g);
-	//WEIGHT SETUP
-	for (int i = 0; i < 80; i++) inputWeights[i] = (float)genome.inputWeights[i] / 4 - 2;
-	for (int i = 0; i < 56; i++) hiddenWeights[i] = (float)genome.hiddenWeights[i] / 4 - 2;
-	//for (int i = 0; i < 80; i++) inputWeights[i] = (float)genome.inputWeights[i] / 8 - 1;
-	//for (int i = 0; i < 56; i++) hiddenWeights[i] = (float)genome.hiddenWeights[i] / 8 - 1;
+	
+	//translate genome (char from 0 to 16) into weights (float from -4 to 4)
+	for (int i = 0; i < G_IW; i++)
+		inputWeights[i] = (float) (genome.inputWeights[i] - 8) / 2;
+	for (int i = 0; i < G_HW; i++)
+		hiddenWeights[i] = (float) (genome.hiddenWeights[i] - 8) / 2;
+	
 	//initialize values for the simulation
-	dir = randIntInRange(0, 8);
 	hasFood = false;
-	pos[0] = 0;
-	pos[1] = 0;
 	fitness = 0;
 
 	return;
@@ -26,39 +25,56 @@ Ant::Ant(Genome g) {
 
 std::stringstream Ant::getGenomeString() {
 	stringstream ss;
-	for (int i = 0; i < 80; i++) ss << (char)('a' + genome.inputWeights[i]);
-	for (int i = 0; i < 56; i++) ss << (char)('a' + genome.hiddenWeights[i]);
+	for (int i = 0; i < G_IW; i++) ss << (char)('a' + genome.inputWeights[i]);
+	for (int i = 0; i < G_HW; i++) ss << (char)('a' + genome.hiddenWeights[i]);
 	return ss;
 }
 
-void Ant::sense(World* world, float step, float osc) {
+void Ant::sense(World* world, float step, float osc1, float osc2, float osc3) {
 	//fill input nodes with data from world and self
-	int* forwardPos = getForwardPos();
-	input[0] = (world->checkSignalA(pos[0], pos[1])) ? -1.0f : 1.0f;
-	input[1] = world->readSignalA(pos[0], pos[1]);
-	input[2] = (world->checkSignalB(pos[0], pos[1])) ? -1.0f : 1.0f;
-	input[3] = world->readSignalB(pos[0], pos[1]);
-	input[4] = (world->checkBlocked(forwardPos[0], forwardPos[1])) ? -1.0f : 1.0f;
-	input[6] = ((float)dir / 7) * 2 - 1;
-	input[7] = randFloat();
-	input[8] = step;
-	input[9] = osc;
+	glm::vec2 forwardPos = getForwardPos();
+	glm::vec2 leftPos = getLeftPos();
+	glm::vec2 backPos = getBackPos();
+	glm::vec2 rightPos = getRightPos();
+	input[0] = world->readSignalA(pos[0], pos[1]);
+	input[1] = world->readSignalB(pos[0], pos[1]);
+	input[2] = world->readSignalA(forwardPos[0], forwardPos[1]);
+	input[3] = world->readSignalB(forwardPos[0], forwardPos[1]);
+	input[4] = world->readSignalA(leftPos[0], leftPos[1]);
+	input[5] = world->readSignalB(leftPos[0], leftPos[1]);
+	input[6] = world->readSignalA(backPos[0], backPos[1]);
+	input[7] = world->readSignalB(backPos[0], backPos[1]);
+	input[8] = world->readSignalA(rightPos[0], rightPos[1]);
+	input[9] = world->readSignalB(rightPos[0], rightPos[1]);
+	input[10] = (world->checkBlocked(forwardPos[0], forwardPos[1])) ? -1.0f : 1.0f;
+	//if (dir < 3)					input[11] = 1;
+	//else if (dir > 3 && dir < 7)	input[11] = -1;
+
+	//if (dir > 5 || dir == 0)		input[12] = 1;
+	//else if (dir > 1 && dir < 5)	input[12] = -1;
+	input[11] = randFloat();
+	//input[30] = step;
+	input[12] = osc1;
+	input[13] = osc2;
+	input[14] = osc3;
 	return;
 }
 
 void Ant::think() {
 	//feed input to hidden layer
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 10; j++) {
-			hidden[i] += input[j] * inputWeights[j * 8 + i] / 16;
+	for (int i = 0; i < G_HN; i++) {
+		hidden[i] = 0;
+		for (int j = 0; j < G_SN; j++) {
+			hidden[i] += input[j] * inputWeights[j * G_HN + i];
 		}
 		hidden[i] = tanh(hidden[i]);
 	}
 
 	//feed hidden layer to output
-	for (int i = 0; i < 7; i++) {
-		for (int j = 0; j < 8; j++) {
-			output[i] += hidden[j] * hiddenWeights[j * 7 + i] / 16;
+	for (int i = 0; i < G_AN; i++) {
+		output[i] = 0;
+		for (int j = 0; j < G_HN; j++) {
+			output[i] += hidden[j] * hiddenWeights[j * G_AN + i];
 		}
 		output[i] = tanh(output[i]);
 	}
@@ -71,21 +87,17 @@ void Ant::act(World* world) {
 
 	//drop signal A
 	if (output[0] > 0.0f) world->dropSignalA(pos[0], pos[1], output[1]);
-
 	//drop signal B
 	if (output[2] > 0.0f) world->dropSignalB(pos[0], pos[1], output[3]);
-
 	//turn clockwise
-	if (output[4] > 0.0f && ++dir == 8) dir = 0;
-
+	//output[4] = 0;
+	if (output[4] > 0.0f && ++dir == 4) dir = 0;
 	//turn counterclockwise
-	if (output[5] > 0.0f && --dir == -1) dir = 7;
-
+	//output[5] = 0;
+	if (output[5] > 0.0f && --dir == -1) dir = 3;
 	//move forward
-	if (output[6] > 0.0f) {
-		int* forwardPos = getForwardPos();
-		world->moveAnt(this);
-	}
+	//output[6] = 1;
+	if (output[6] > 0.0f) { world->moveAnt(this); }
 
 	return;
 }
@@ -111,54 +123,121 @@ void Ant::giveFood() {
 void Ant::takeFood() {
 	hasFood = false;
 	fitness++;
+	fitness++;
 	return;
 }
 
-int* Ant::getForwardPos() {
-	int forwardPos[2] = { pos[0], pos[1] };
+glm::vec2 Ant::getForwardPos() {
+	glm::vec2 fpos = glm::vec2(pos[0], pos[1]);
 
-	if (dir < 3)					forwardPos[0]++;
-	else if (dir > 3 && dir < 7)	forwardPos[0]--;
+	switch (dir) {
+	case 0:
+		fpos.x++;
+		break;
+	case 1:
+		fpos.y++;
+		break;
+	case 2:
+		fpos.x--;
+		break;
+	case 3:
+		fpos.y--;
+		break;
+	}
 
-	if (dir > 5 || dir == 0)		forwardPos[1]++;
-	else if (dir > 1 && dir < 5)	forwardPos[1]--;
+	//std::cout << pos[0] << "," << pos[1] << " " << fpos.x << "," << fpos.y << " " << dir << std::endl;
 
-	return forwardPos;
+	return fpos;
+}
+glm::vec2 Ant::getLeftPos() {
+	glm::vec2 lpos = glm::vec2(pos.x, pos.y);
+
+	switch (dir) {
+	case 0:
+		lpos.y++;
+		break;
+	case 1:
+		lpos.x--;
+		break;
+	case 2:
+		lpos.y--;
+		break;
+	case 3:
+		lpos.x++;
+		break;
+	}
+
+	return lpos;
+}
+glm::vec2 Ant::getBackPos() {
+	glm::vec2 bpos = glm::vec2(pos.x, pos.y);
+
+	switch (dir) {
+	case 0:
+		bpos.x--;
+		break;
+	case 1:
+		bpos.y--;
+		break;
+	case 2:
+		bpos.x++;
+		break;
+	case 3:
+		bpos.y++;
+		break;
+	}
+
+	return bpos;
+}
+glm::vec2 Ant::getRightPos() {
+	glm::vec2 rpos = glm::vec2(pos.x, pos.y);
+	switch (dir) {
+	case 0:
+		rpos.y--;
+		break;
+	case 1:
+		rpos.x++;
+		break;
+	case 2:
+		rpos.y++;
+		break;
+	case 3:
+		rpos.x--;
+		break;
+	}
+
+	return rpos;
 }
 
 Genome Ant::generateRandomGenome() {
 	Genome g;
-	//INITIAL GENOME SETUP
-	//for (int i = 0; i < 80; i++) g.inputWeights[i] = randCharInRange(0, 16);
-	//for (int i = 0; i < 56; i++) g.hiddenWeights[i] = randCharInRange(0, 16);
-	for (int i = 0; i < 80; i++) g.inputWeights[i] = 8;
-	for (int i = 0; i < 56; i++) g.hiddenWeights[i] = 8;
+	//for (int i = 0; i < G_IW; i++) g.inputWeights[i] = randCharInRange(0, 16);
+	//for (int i = 0; i < G_HW; i++) g.hiddenWeights[i] = randCharInRange(0, 16);
+	for (int i = 0; i < G_IW; i++) g.inputWeights[i] = 8;
+	for (int i = 0; i < G_HW; i++) g.hiddenWeights[i] = 8;
 	return g;
 }
 
 Genome Ant::mutateGenome(Genome g) {
-	//MUTATION METHOD SETUP
-	//there are two methods here to choose from
-
 	//change MUTATION_RATE random chars in the genome randomly
 	int index;
 	for (int i = 0; i < MUTATION_RATE; i++) {
-		index = randIntInRange(0, 135);
-		if (index < 80) g.inputWeights[index]		= randCharInRange(0, 16);
-		else			g.hiddenWeights[index - 80] = randCharInRange(0, 16);
+		index = randIntInRange(0, G_IW + G_HW - 1);
+		if (index < G_IW)	g.inputWeights[index]			= randCharInRange(0, 16);
+		else				g.hiddenWeights[index - G_IW]	= randCharInRange(0, 16);
 	}
 
 	//increment or decrement MUTATION_RATE random chars
 	/*int index;
 	for (int i = 0; i < MUTATION_RATE; i++) {
-		index = randIntInRange(0, 135);
-		if (index < 80) {
+		index = randIntInRange(0, G_IW + G_HW - 1);
+		if (index < G_IW) {
 			if (randFloat() > 0.5f) g.inputWeights[index] = min(16, g.inputWeights[index] + 1);
 			else					g.inputWeights[index] = max(0, g.inputWeights[index] - 1);
 		}
 		else {
-			if (randFloat() > 0.5f)	g.hiddenWeights[index - 80] = min(16, g.inputWeights[index - 80] + 1);
-			else					g.hiddenWeights[index - 80] = max(0, g.inputWeights[index - 80] - 1);
+			if (randFloat() > 0.5f)	g.hiddenWeights[index - G_IW] = min(16, g.inputWeights[index - G_IW] + 1);
+			else					g.hiddenWeights[index - G_IW] = max(0, g.inputWeights[index - G_IW] - 1);
 		}
 	}*/
 
@@ -166,15 +245,15 @@ Genome Ant::mutateGenome(Genome g) {
 }
 
 void Ant::printNet() {
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < G_SN; i++) {
 		cout << input[i] << ",";
 	}
 	cout << endl;
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < G_HN; i++) {
 		cout << hidden[i] << ",";
 	}
 	cout << endl;
-	for (int i = 0; i < 7; i++) {
+	for (int i = 0; i < G_AN; i++) {
 		cout << output[i] << ",";
 	}
 	cout << endl;

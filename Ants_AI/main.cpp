@@ -22,15 +22,8 @@
 #include <unistd.h>
 #endif
 
-//constants not to be touched
-//object IDs for the grid
-extern const int EID_NONE = 0;
-extern const int EID_ANT = 1;
-extern const int EID_FOOD = 2;
-extern const int EID_HIVE = 3;
-
 //train instead
-//extern const std::string loadfilename = "";
+extern const std::string loadfilename = "";
 
 //load file for 4 mutations per generation, mutation method 2, weights -2 to 2, all weights start at 0
 //extern const std::string loadfilename = "../saved_generations/1774312453_genomes_at_generation_9.txt";
@@ -43,28 +36,41 @@ extern const int EID_HIVE = 3;
 //extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_9.txt";
 //extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_39.txt";
 //extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_69.txt";
-extern const std::string loadfilename = "../saved_generations/1774392846_genomes_at_generation_99.txt";
+//extern const std::string loadfilename = "../saved_generations/1774401047_genomes_at_generation_999.txt";
+//
+//extern const std::string loadfilename = "../saved_generations/1774402423_genomes_at_generation_99.txt";
+//extern const std::string loadfilename = "../saved_generations/1774402423_genomes_at_generation_299.txt";
+//extern const std::string loadfilename = "../saved_generations/1774417943_genomes_at_generation_99.txt";
+// 
+//extern const std::string loadfilename = "../saved_generations/1774417943_genomes_at_generation_99.txt";
+//extern const std::string loadfilename = "../saved_generations/1774417943_genomes_at_generation_99.txt";
+//extern const std::string loadfilename = "../saved_generations/1774416535_genomes_at_generation_90.txt";
+
+
 
 
 
 //simulation run parametres
-extern const int MAX_GENERATIONS = 1000;
+extern const int MAX_GENERATIONS = 10000;
 extern const int SAVE_GENERATION = 10;
 
-//height and width of world
-extern const int WORLD_SIZE = 100;
-//ant population is enough to line one wall of the world
-extern const int POPULATION = WORLD_SIZE;
-//four foods per ant
-extern const int FOOD_COUNT = POPULATION * 4;
-//enough time for an ant to walk the perimeter of the world
+extern const int WINDOW_SIZE = 800;
+
+extern const int WORLD_SIZE = 128;
 extern const int SIMULATION_ITERATIONS = WORLD_SIZE * 8;
-//number of mutations to the genome
-extern const int MUTATION_RATE = 4;	//MUTATION RATE SETUP
+extern const int MUTATION_RATE = 1;
+
+extern const int POPULATION = 32;
+extern const int HIVE_SPACING = 2;
+extern const int HIVE_SIZE = (POPULATION + HIVE_SPACING) / 4;
+extern const int FOOD_COUNT = POPULATION * 4;
+
+
 
 #include "World.h"
 #include "Ant.h"
 #include "App.h"
+#include "Genome.h"
 
 struct simulationSettings {
 	int worldSize;
@@ -75,6 +81,7 @@ struct simulationSettings {
 
 void populateNewGeneration(Ant* ants[]) {
 	//sort ants by fitness score
+	std::random_shuffle(ants, ants + POPULATION);
 	std::sort(ants, ants + POPULATION, Ant::antCompare);
 
 	//select the best half of the population's genomes for reproduction
@@ -83,7 +90,8 @@ void populateNewGeneration(Ant* ants[]) {
 		bestGenomes[j] = ants[j]->getGenome();
 	}
 
-	//deallocate generation, create new generation with best genomes
+	//create new generation with best genomes
+	//(mutation takes place in the Ant constructor)
 	for (int j = 0; j < POPULATION / 2; j++) {
 		delete ants[j];
 		ants[j] = new Ant(bestGenomes[j]);
@@ -105,7 +113,7 @@ int getCumulativeFitness(Ant* ants[]) {
 	return sum;
 }
 
-void writeGenerationToFile(Ant* ants[], int genNum, int fitnessScores[], unsigned int seed) {
+std::string writeGenerationToFile(Ant* ants[], int genNum, int fitnessScores[], unsigned int seed) {
 	std::ofstream file;
 	std::stringstream filename;
 	int cumulativeFitness;
@@ -138,7 +146,7 @@ void writeGenerationToFile(Ant* ants[], int genNum, int fitnessScores[], unsigne
 	std::cout << std::endl;
 	std::cout << "Wrote genomes of generation " << genNum;
 	std::cout << " to file: \n\t" << filename.str() << std::endl << std::endl;
-	return;
+	return filename.str();
 }
 
 simulationSettings readGenerationFromFile(Ant* ants[], std::string filename) {
@@ -168,8 +176,8 @@ simulationSettings readGenerationFromFile(Ant* ants[], std::string filename) {
 		for (int i = 0; i < POPULATION; i++) {
 			if (getline(file, line)) {
 				Genome genome;
-				for (int j = 0; j < 80; j++) genome.inputWeights[j] = line[j] - 'a';
-				for (int j = 0; j < 56; j++) genome.hiddenWeights[j] = line[j + 80] - 'a';
+				for (int j = 0; j < G_IW; j++) genome.inputWeights[j] = line[j] - 'a';
+				for (int j = 0; j < G_HW; j++) genome.hiddenWeights[j] = line[j + G_IW] - 'a';
 				ants[i] = new Ant(genome);
 			}
 
@@ -179,30 +187,58 @@ simulationSettings readGenerationFromFile(Ant* ants[], std::string filename) {
 	return ss;
 }
 
+int displayGeneration(int argc, char* argv[], std::string filename, App app) {
+	std::cout << "Loading genomes from " << filename << ":" << std::endl;
+	Ant* ants[POPULATION];
+	simulationSettings ss = readGenerationFromFile(ants, filename);
+	if (ss.worldSize == 0) {
+		std::cout << "ERROR: The file " << filename << " could not be opened or read, exiting." << std::endl;
+		return 0;
+	}
+	World *world = new World(ss.worldSize, ss.population, ants, ss.foodCount);
+
+	app.setWorld(world, ss.worldSize);
+	for (int i = 0; i < ss.simIterations; i++) {
+		world->simulateStep(i, ss.simIterations);
+		RenderCallback();
+		Sleep(1000 / 60);
+	}
+	std::cout << getCumulativeFitness(ants);
+	delete world;
+	return 0;
+}
+
 int main(int argc, char* argv[]) {
+	//save seed from system time to seed the random number generator
 	unsigned int seed = time(NULL);
 	srand(seed);
 
-	Ant* ants[POPULATION];
-	World* world;
+	App app;
+	app.Init(argc, argv, WORLD_SIZE);
 	int fitnessScores[SAVE_GENERATION];
-	int initialGeneration = 0;
 
-	//if no loadfile, generate initial generation with random genome constructor
-	if (loadfilename == "") {
+	//if loadfile, display the generation and close
+	if (loadfilename != "") displayGeneration(argc, argv, loadfilename, app);
+	//if no loadfile, begin the evolutionary algorithm by populating with random ants
+	else {
 		std::cout << "No sourcefile: generating " << POPULATION << " random ants..." << std::endl;
-		for (int i = 0; i < POPULATION; i++) {
-			ants[i] = new Ant();
-		}
+
+		
 
 		std::cout << "Begining simulation (each \".\" represents a generation, the number is the generation's cumulative fitness score):" << std::endl;
-		for (int i = initialGeneration; i <= MAX_GENERATIONS; i++) {
-
-			//create the world, simulate for SIMULATION_ITERATIONS steps, then deallocate
-			world = new World(WORLD_SIZE, POPULATION, ants, FOOD_COUNT);
-			for (int j = 0; j < SIMULATION_ITERATIONS; j++) {
+		
+		//create a set of ants with random or all 0 genomes
+		Ant* ants[POPULATION];
+		for (int i = 0; i < POPULATION; i++)
+			ants[i] = new Ant();
+		
+		//run the evolutionary algorithm
+		for (int i = 0; i <= MAX_GENERATIONS; i++) {
+			//create the world, simulate for SIMULATION_ITERATIONS steps
+			//(each ant keeps track of its own fitness score)
+			World *world = new World(WORLD_SIZE, POPULATION, ants, FOOD_COUNT);
+			for (int j = 0; j < SIMULATION_ITERATIONS; j++)
 				world->simulateStep(j, SIMULATION_ITERATIONS);
-			}
 			delete world;
 
 			int fitness = getCumulativeFitness(ants);
@@ -210,8 +246,9 @@ int main(int argc, char* argv[]) {
 			fitnessScores[i % SAVE_GENERATION] = fitness;
 
 			//save best genomes to file every so often
-			if (i % SAVE_GENERATION == SAVE_GENERATION - 1) {
-				writeGenerationToFile(ants, i, fitnessScores, seed);
+			if (i % SAVE_GENERATION == 9) {
+				std::string filename = writeGenerationToFile(ants, i, fitnessScores, seed);
+				displayGeneration(argc, argv, filename, app);
 			}
 
 			//select best ants by fitness score and create a new generation
@@ -219,25 +256,6 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	else {
-		std::cout << "Loading genomes from " << loadfilename << ":" << std::endl;
-		simulationSettings ss = readGenerationFromFile(ants, loadfilename);
-		if (ss.worldSize == 0) { 
-			std::cout << "ERROR: The file " << loadfilename << " could not be opened or read, exiting." << std::endl;
-			return 0;
-		}
-		world = new World(ss.worldSize, ss.population, ants, ss.foodCount);
-		
-		App app;
-		app.Init(argc, argv, world, ss.worldSize);
-		for (int i = 0; i < ss.simIterations; i++) {
-			world->simulateStep(i, ss.simIterations);
-			RenderCallback();
-			Sleep(1000 / 30);
-		}
-		std::cout << getCumulativeFitness(ants);
-		delete world;
-	}
 
 	return 0;
 }

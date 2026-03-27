@@ -1,4 +1,5 @@
 #include "World.h"
+#include <glm/glm.hpp>
 
 #define PIX2 6.2831853
 
@@ -10,13 +11,8 @@ World::GridSquare::GridSquare() {
 	isHive = false;
 	hasAnt = false;
 
-	hasSignalA = false;
-	hasSignalB = false;
-
-	lastSignalIsA = false;
-
-	signalACount = 0;
-	signalBCount = 0;
+	signalA = 0;
+	signalB = 0;
 
 	return;
 }
@@ -36,24 +32,26 @@ World::World(int w, int p, Ant** a, int foodCount) {
 
 void World::simulateStep(int step, int simIterations) {
 	float stepFloat = ((float)step / simIterations) * 2 - 1;
-	float oscFloat = sin((float)(step % 20) / 20.0f * PIX2);
+	float osc1 = sin((float)(step % 4) / 4.0f * PIX2);
+	float osc2 = sin((float)(step % 8) / 8.0f * PIX2);
+	float osc3 = sin((float)(step % 16) / 16.0f * PIX2);
 
 	for (int i = 0; i < population; i++) {
-		ants[i]->sense(this, stepFloat, oscFloat);
+		ants[i]->sense(this, stepFloat, osc1, osc2, osc3);
 		ants[i]->think();
 		ants[i]->act(this);
 
-		int* pos = ants[i]->getPos();
+		glm::vec2 pos = ants[i]->getPos();
 		bool hasFood = ants[i]->getHasFood();
 
 		//if an ant walks over food while not carrying anything, it picks up the food
-		if (!hasFood && grid[pos[0]][pos[1]].hasFood) {
+		if (!hasFood && grid[pos.x][pos.y].hasFood) {
 			ants[i]->giveFood();
-			grid[pos[0]][pos[1]].hasFood = false;
+			grid[pos.x][pos.y].hasFood = false;
 		}
 
 		//if an ant walks over the hive while carrying food, the food is delivered
-		if (hasFood && grid[pos[0]][pos[1]].isHive) {
+		if (hasFood && grid[pos.x][pos.y].isHive) {
 			ants[i]->takeFood();
 		}
 
@@ -63,32 +61,24 @@ void World::simulateStep(int step, int simIterations) {
 
 void World::dropSignalA(int x, int y, float signal) {
 	grid[x][y].signalA = signal;
-	grid[x][y].hasSignalA = true;
-	grid[x][y].signalACount++;
-	grid[x][y].lastSignalIsA = true;
 	return;
 }
 
 void World::dropSignalB(int x, int y, float signal) {
 	grid[x][y].signalB = signal;
-	grid[x][y].hasSignalB = true;
-	grid[x][y].signalBCount++;
-	grid[x][y].lastSignalIsA = false;
 	return;
 }
 
 bool World::moveAnt(Ant* ant) {
-	int* oldPos = ant->getPos();
-	int* newPos = ant->getForwardPos();
-	int newPosX = newPos[0];
-	int newPosY = newPos[1];
+	glm::vec2 oldPos = ant->getPos();
+	glm::vec2 newPos = ant->getForwardPos();
 
-	if (!checkBlocked(newPosX, newPosY)) {
-		grid[oldPos[0]][oldPos[1]].hasAnt = false;
-		grid[oldPos[0]][oldPos[1]].ant = NULL;
-		grid[newPosX][newPosY].hasAnt = true;
-		grid[newPosX][newPosY].ant = ant;
-		ant->changePos(newPosX, newPosY);
+	if (!checkBlocked(newPos.x, newPos.y)) {
+		grid[oldPos.x][oldPos.y].hasAnt = false;
+		grid[oldPos.x][oldPos.y].ant = NULL;
+		grid[newPos.x][newPos.y].hasAnt = true;
+		grid[newPos.x][newPos.y].ant = ant;
+		ant->changePos(newPos.x, newPos.y);
 		return true;
 	}
 	else return false;
@@ -102,20 +92,14 @@ bool World::checkHive(int x, int y) {
 	return grid[x][y].isHive;
 };
 
-bool World::checkSignalA(int x, int y) {
-	return grid[x][y].hasSignalA;
-};
-
 float World::readSignalA(int x, int y) {
-	return grid[x][y].signalA;
-};
-
-bool World::checkSignalB(int x, int y) {
-	return grid[x][y].hasSignalB;
+	if (x < 0 || x >= worldSize || y < 0 || y >= worldSize) return 0;
+	else return grid[x][y].signalA;
 };
 
 float World::readSignalB(int x, int y) {
-	return grid[x][y].signalB;
+	if (x < 0 || x >= worldSize || y < 0 || y >= worldSize) return 0;
+	else return grid[x][y].signalB;
 };
 
 bool World::checkBlocked(int x, int y) {
@@ -139,65 +123,30 @@ void World::printGrid() {
 	}
 }
 
-void World::generateArea(int size, int areaType) {
-	int x = randIntInRange(size, worldSize - size);
-	int y = randIntInRange(size, worldSize - size);
-	int radiusSQ = (size * size) / 4;
-	int radius = (size * 2) + 1;
-	int threshold, d;
-	for (int i = 0; i < worldSize; ++i) {
-		threshold = radiusSQ - ((i - y) * (i - y));
-		for (int j = 0; j < worldSize; ++j)
-		{
-			d = j - x;
-			switch (areaType) {
-			case TYPE_HIVE:
-				if ((d * d) > threshold) {
-					grid[i][j].isHive = false;
-				}
-				else {
-					grid[i][j].isHive = true;
-				}
-				break;
-			case TYPE_FOOD:
-				if ((d * d) > threshold) {
-					grid[i][j].hasFood = false;
-				}
-				else {
-					grid[i][j].hasFood = true;
-				}
-				break;
-			default:
-				break;
-			}
-		}
-	}
-}
 
 void World::setupHive() {
 	int k = 0;
-	int hiveSize = population / 4;
-	for (int i = (worldSize - hiveSize) / 2; i < (worldSize + hiveSize) / 2; i++) {\
+	int hiveSize = worldSize / 8;
+	for (int i = (worldSize - hiveSize) / 2; i < (worldSize + hiveSize) / 2; i = i + 2) {
 		grid[i][(worldSize - hiveSize) / 2 - 1].hasAnt = true;
 		grid[i][(worldSize - hiveSize) / 2 - 1].ant = ants[k];
 		ants[k++]->setup(i, (worldSize - hiveSize) / 2 - 1, 3);
 
 		grid[i][(worldSize + hiveSize) / 2].hasAnt = true;
 		grid[i][(worldSize + hiveSize) / 2].ant = ants[k];
-		ants[k++]->setup(i, (worldSize + hiveSize) / 2, 7);
+		ants[k++]->setup(i, (worldSize + hiveSize) / 2, 1);
 
 		grid[(worldSize - hiveSize) / 2 - 1][i].hasAnt = true;
 		grid[(worldSize - hiveSize) / 2 - 1][i].ant = ants[k];
-		ants[k++]->setup((worldSize - hiveSize) / 2 - 1, i, 5);
+		ants[k++]->setup((worldSize - hiveSize) / 2 - 1, i, 2);
 
 		grid[(worldSize + hiveSize) / 2][i].hasAnt = true;
 		grid[(worldSize + hiveSize) / 2][i].ant = ants[k];
-		ants[k++]->setup((worldSize + hiveSize) / 2, i, 1);
-
-		for (int j = (worldSize - hiveSize) / 2; j < (worldSize + hiveSize) / 2; j++) {
-			grid[i][j].isHive = true;
-		}
+		ants[k++]->setup((worldSize + hiveSize) / 2, i, 0);
 	}
+	for (int i = (worldSize - hiveSize) / 2; i < (worldSize + hiveSize) / 2; i++)
+		for (int j = (worldSize - hiveSize) / 2; j < (worldSize + hiveSize) / 2; j++)
+			grid[i][j].isHive = true;
 
 	return;
 }
@@ -205,28 +154,38 @@ void World::setupHive() {
 void World::addFood(int foodCount) {
 	//pick the center around which to generate the food circle (somewhere along an edge)
 	int foodPos[2];
-	foodPos[0] = randIntInRange(0, worldSize);
-	foodPos[1] = randIntInRange(0, worldSize);
-	bool clampedOnY = randFloat() > 0.5f;
-	if (clampedOnY)	foodPos[0] = (foodPos[0] > worldSize / 2) ? 0 : worldSize;
-	else			foodPos[1] = (foodPos[1] > worldSize / 2) ? 0 : worldSize;
+	int angle = randIntInRange(25, 65);
+	foodPos[1] = worldSize * (0.33 * glm::sin(glm::radians((float)angle)));
+	foodPos[0] = worldSize * (0.33 * glm::cos(glm::radians((float)angle)));
+	
+	//foodPos[0] = randIntInRange(0, worldSize);
+	//foodPos[1] = randIntInRange(0, worldSize);
+	//bool clampedOnY = randFloat() > 0.5f;
+	//if (clampedOnY)	foodPos[0] = (foodPos[0] > worldSize / 2) ? 0 : worldSize;
+	//else			foodPos[1] = (foodPos[1] > worldSize / 2) ? 0 : worldSize;
 
-	//add food to the grid in places within the circle
-	float radiusSqared = (float(foodCount * 4) / PIX2) / 2;
-	int x, y, k = 0;
-	for (int i = -int(radiusSqared); i < int(radiusSqared); i++) {
-		x = foodPos[0] + i;
-		if (x >= worldSize)	x -= worldSize;
-		else if (x < 0)		x += worldSize;
+	for (int k = -1; k < 2; k = k + 2) {
+		for (int l = -1; l < 2; l = l + 2) {
+			//add food to the grid in places within the circle
+			float radiusSqared = (float(foodCount) / PIX2) / 2;
+			int x, y, z = 0;
+			for (int i = -int(radiusSqared); i < int(radiusSqared); i++) {
+				x = k * foodPos[0] + worldSize / 2 + i;
+				//x = foodPos[0] + worldSize / 2 + i;
+				if (x >= worldSize)	x -= worldSize;
+				else if (x < 0)		x += worldSize;
 
-		for (int j = -int(radiusSqared); j < int(radiusSqared); j++) {
-			y = foodPos[1] + j;
-			if (y >= worldSize)	y -= worldSize;
-			else if (y < 0)		y += worldSize;
+				for (int j = -int(radiusSqared); j < int(radiusSqared); j++) {
+					y = l * foodPos[1] + worldSize / 2 + j;
+					//y = foodPos[1] + worldSize / 2 + j;
+					if (y >= worldSize)	y -= worldSize;
+					else if (y < 0)		y += worldSize;
 
-			if (i * i + j * j < radiusSqared) {
-				grid[x][y].hasFood = true;
-				k++;
+					if (i * i + j * j < radiusSqared) {
+						grid[x][y].hasFood = true;
+						z++;
+					}
+				}
 			}
 		}
 	}
